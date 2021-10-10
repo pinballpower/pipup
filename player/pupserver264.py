@@ -5,6 +5,8 @@ import logging
 import sys
 import threading
 import subprocess
+from glob import glob
+import os.path
 
 player=None
 
@@ -13,15 +15,10 @@ loop=False
 
 def get_meta(filename):
     filename=filename.lower()
-    if "/" in filename:
-        return metadata[filename]
+    if filename.endswith(".h264"):
+        filename=filename[:-5]
 
-    for f in metadata.keys():
-        (dir, file) = f.split("/")
-        if file == filename:
-            return metadata[f]
-
-    return None
+    return metadata[filename]
 
 @route('/setloop/<looponoff>')
 def setloop(looponoff):
@@ -39,26 +36,28 @@ def play(filename):
         if player is not None:
             oldplayer=player
 
+        absfile=get_meta(filename)["file"]
   
         if loop:
-            player=subprocess.Popen(["../hello_video.bin", "--loop", "../../Ball_Lock/"+filename]) 
+            player=subprocess.Popen(["../hello_video.bin", "--loop", absfile]) 
         else:
-            player=subprocess.Popen(["../hello_video.bin", "../../Ball_Lock/"+filename])   
+            player=subprocess.Popen(["../hello_video.bin", absfile])   
+
+        if oldplayer is not None:
+            oldplayer.kill()
+
         logging.error(player)
     except Exception as e:
         logging.error("%s", e)
     
 
-def read_metadata(filename):
-    with open(filename, 'r', encoding='utf-8') as infile:
-        for line in infile:
-            logging.debug("Parsing line %s", line)
-            try:
-                (file, _frames, _length, _milliseconds, ts_start, ts_end) = line.split()
-                file=file.lower().replace(".mp4","")
-                metadata[file]={"start": float(ts_start)/1000, "end": float(ts_end)/1000}
-            except:
-                logging.error("Can't parse line %s", line);
+def read_files(basedir):
+    for f in glob(basedir+"/*/*.h264"):
+        key=os.path.basename(f)[:-5].lower()
+        logging.error(key)
+        metadata[key]={"file": os.path.abspath(f)}	
+	
+
 
 def main():
     try:
@@ -67,7 +66,7 @@ def main():
         datadir="."
 
     logging.basicConfig(level=logging.INFO)
-    read_metadata(datadir+"/fileinfo.txt")
+    read_files(datadir)
 
     run(host="localhost", port=5000)  
 
