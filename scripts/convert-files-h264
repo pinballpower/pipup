@@ -1,0 +1,10 @@
+#!/bin/bash
+
+rm */*.h264
+for f in $(ls */*.mp4); do
+   h264=${f/.mp4/.h264}
+   ffmpeg -i $f -vcodec copy -an -bsf:v h264_mp4toannexb $h264
+done
+
+echo "Done"
+
