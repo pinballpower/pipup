@@ -19,7 +19,8 @@ class Looper(threading.Thread):
         try:  
             while True:
                 current=omxplayer.position()
-                if current >= end_pos:
+                logging.error(current)
+                if current >= end_pos - 0.1:
                     if loop:
                         omxplayer.set_position(start_pos)
                     else:
