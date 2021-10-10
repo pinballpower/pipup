@@ -39,8 +39,12 @@ def play(filename):
         if player is not None:
             oldplayer=player
 
-        result=subprocess.run(["../hello_video.bin", "../../Ball_Lock/"+filename]) 
-        logging.error(result)
+  
+        if loop:
+            player=subprocess.Popen(["../hello_video.bin", "--loop", "../../Ball_Lock/"+filename]) 
+        else:
+            player=subprocess.Popen(["../hello_video.bin", "../../Ball_Lock/"+filename])   
+        logging.error(player)
     except Exception as e:
         logging.error("%s", e)
     
