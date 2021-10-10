@@ -6,6 +6,8 @@ VIDEO_PATH = Path("output2.mp4")
 
 player = OMXPlayer(VIDEO_PATH)
 
+print ("Metadata: ",player.metadata())
+
 for i in range(0,100):
     sleep(5)
     player.set_position(i)
