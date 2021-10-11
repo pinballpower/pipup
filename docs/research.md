@@ -14,7 +14,7 @@ to do this on an exact frame.
 
 Most of the problems are the same with VLC. The socket interface performs a bit better, but I wasn't able to implement looping on exact frames
 
-## hello_video
+### hello_video
 
 This is a very trivial and minimalistic video player, develped as a simple demeonstration how to use the hardware video decoder of the Raspberry Pi. 
 It can't deal with container format, but requires a native H264 data stream. Adafruit has expanded it to support seamless looping.
