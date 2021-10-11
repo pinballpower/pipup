@@ -244,13 +244,20 @@ def read_files(basedir):
             logging.debug("Added playlist %s", p)
             
 def main():
+    global screen 
+    
     try:
         datadir=sys.argv[1]
         screen=sys.argv[2]
     except:
         datadir="."
+        screen=12
 
     logging.basicConfig(level=logging.INFO)
+    
+    logging.info("Starting PiPUP server from data directory %s, screennum %s",
+                 datadir, screen)
+    
     read_files(datadir)
 
     looperthread=Looper()
