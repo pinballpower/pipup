@@ -32,7 +32,7 @@ class Looper(threading.Thread):
 
 
 
-def get_meta(filename):
+def fileinfo(filename):
     filename=filename.lower()
     if "/" in filename:
         return metadata[filename]
@@ -60,7 +60,7 @@ def play(filename):
     global start_pos
     global end_pos
     try:
-        md = get_meta(filename)
+        md = fileinfo(filename)
         logging.error("filename, md: %s, %s", filename, md)
         start_pos=md["start"]
         end_pos=md["end"]
