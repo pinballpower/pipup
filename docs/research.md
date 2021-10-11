@@ -10,7 +10,7 @@ omxplayer needs some time to start a new video playback. Another problem is that
 The idea therefore was to use one bug video file and just seek within this file. However, the DBus interface isn't performant enough
 to do this on an exact frame. 
 
-## VLC
+### VLC
 
 Most of the problems are the same with VLC. The socket interface performs a bit better, but I wasn't able to implement looping on exact frames
 
