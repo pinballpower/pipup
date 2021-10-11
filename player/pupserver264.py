@@ -1,9 +1,6 @@
-from bottle import route, run, template
-from pathlib import Path
-from time import sleep
+from bottle import route, run
 import logging
 import sys
-import threading
 import subprocess
 from glob import glob
 import os.path
@@ -56,7 +53,6 @@ def read_files(basedir):
         key=os.path.basename(f)[:-5].lower()
         logging.error(key)
         metadata[key]={"file": os.path.abspath(f)}	
-	
 
 
 def main():
