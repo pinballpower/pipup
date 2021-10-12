@@ -8,7 +8,12 @@ on the display.
 
 ## Limitations
 
-Only a single screen and a single resolution is supported.
+Only a 2 video screens are supported. No support for the 2nd HDMI output on the Pi4.
+
+## To Do
+
+- Use screens.pup configuration file
+- support PNG files
 
 ## Interfaces
 
