@@ -14,7 +14,7 @@ except:
 
 from puppack import Trigger, Playlist
 
-player=None
+players =None
 bgplayer=None
 
 bgfile=None 
@@ -88,7 +88,7 @@ def play_file(playlist, filename, loop=False, priority=-1):
         absfile=fileinfo(filename)["file"]
   
         if loop:
-            player=subprocess.Popen(["../hello_video.bin", "--loop", absfile]) 
+            player=subprocess.Popen(["../hello_video.bin", "-", absfile]) 
         else:
             player=subprocess.Popen(["../hello_video.bin", absfile])
             
