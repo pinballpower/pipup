@@ -14,21 +14,83 @@ except:
 
 from puppack import Trigger, Playlist
 
-players =None
-bgplayer=None
-
-bgfile=None 
+# a dictionary of players indexed by their screen ids
+players = {} 
 
 metadata={}
 triggers = []
 playlists = {}
 
-playing = {
-    "file": None,
-    "priority": -1,
-    }
+class Player():
 
-screen = 0
+    def __init__(self, layer = 1):
+        self.process = None
+        self.file = None
+        self.priority = -1
+        self.layer = layer
+        
+    def finish(self):
+        self.process = None
+        self.file = None
+        self.priority = -1
+        
+    def update(self):
+        if self.process is None:
+            return
+        if self.process.poll() is None:
+            return
+        # there is still a process, but it has been terminated
+        
+        self.finish()
+        return 
+        
+    def playing(self):
+        self.update()
+        return (self.process is not None)
+    
+    def stop(self):
+        self.process.kill()
+        self.playing()
+
+    
+    def play(self, playlist, filename, loop=False, priority=-1):
+        if filename is None or filename=="":
+            # Use the playlist instead
+            try:
+                pl=playlists[playlist]
+                filename=os.path.basename(pl.next_file())
+            except:
+                logging.error("couldn't find any file for playlist %s",
+                              playlist)
+    
+        if filename is None or filename=="":
+            logging.info("ignoring playfile request for empty file name")
+            return
+        
+        try:
+            oldproc = self.process
+    
+            absfile=fileinfo(filename)["file"]
+      
+            layeroption = "-l {}".format(self.layer)
+            if loop:
+                self.process=subprocess.Popen(["../hello_video.bin", "-i", layeroption, absfile]) 
+            else:
+                self.process=subprocess.Popen(["../hello_video.bin", layeroption, absfile])
+                
+            self.file=filename
+            self.priority=priority   
+    
+            # If another video is playing, stop it
+            if oldproc is not None:
+                oldproc.kill()
+                
+            logging.debug("Started player")
+        except Exception as e:
+            logging.error("%s", e)
+    
+        
+                
 
 class Looper(Thread):
     
@@ -37,23 +99,12 @@ class Looper(Thread):
         self.stop = False
         
     def run(self):
-        global playing
-        global player
+        global players
         
         while not self.stop:
             time.sleep(0.02)
-            if player is not None:
-                if player.poll() is None:
-                    # player still running
-                    continue
-                
-                logging.info("Playback of current video has been terminated")
-                # player has been terminated
-                player = None
-                playing["file"]= None,
-                playing["priority"]= -1,
-                
-                unpause_bgplayer()
+            for player in players.values():
+                player.update()
         
 
 def fileinfo(filename):
@@ -63,160 +114,56 @@ def fileinfo(filename):
 
     return metadata[filename]
 
-
-def play_file(playlist, filename, loop=False, priority=-1):
-    global player
-    
-    if filename is None or filename=="":
-        # Use the playlist instead
-        try:
-            pl=playlists[playlist]
-            filename=os.path.basename(pl.next_file())
-        except:
-            logging.error("couldn't find any file for playlist %s",
-                          playlist)
-    
-    if filename is None or filename=="":
-        logging.info("ignoring playfile request for empty file name")
-        return
-    
-    try:
-        oldplayer=None
-        if player is not None:
-            oldplayer=player
-
-        absfile=fileinfo(filename)["file"]
-  
-        if loop:
-            player=subprocess.Popen(["../hello_video.bin", "-", absfile]) 
-        else:
-            player=subprocess.Popen(["../hello_video.bin", absfile])
-            
-        playing["file"]=filename
-        playing["priority"]=priority   
-
-        # If another video is playing, stop it
-        if oldplayer is not None:
-            oldplayer.kill()
-            
-        # if a background loop is playing, stop it
-        pause_bgplayer()     
-
-        logging.debug("Started player")
-    except Exception as e:
-        logging.error("%s", e)
-        
-def play_background(filename=None):
-    global bgplayer
-    global bgfile
-    
-    if filename is None:
-        filename = bgfile
-        
-    bgfile=filename
-    
-    stop_bgplayer()
-    stop_player()
-    absfile=fileinfo(filename)["file"]
-    bgplayer=subprocess.Popen(["../hello_video.bin", "--loop", absfile]) 
-         
-def stop_player():
-    global player
-    if player is not None:
-        player.kill()
-        player = None
-        playing["file"]=None
-        playing["priority"]=-1
-        
-def stop_bgplayer():
-    global bgplayer
-    logging.debug("Killing background player")
-    if bgplayer is not None:
-        bgplayer.kill()
-        bgplayer = None
-        
-def pause_bgplayer():
-    global bgplayer
-    if bgplayer is not None:
-        try: 
-            bgplayer.send_signal(SIGUSR1)
-            logging.debug("Sent USR1 to background player")
-        except:
-            stop_bgplayer()
-        
-
-def unpause_bgplayer():
-    global bgplayer
-    if bgplayer is not None:
-        try: 
-            bgplayer.send_signal(SIGUSR2)
-            logging.debug("Sent USR2 to background player")
-        except:
-            play_background()
-    else:
-        play_background()
-   
 def process_triggers(event):
     found=False
     for t in triggers:
-        if t.screennum==screen and t.trigger == event:
+        if t.screennum in players.keys() and t.trigger == event:
             found = True
-            logging.debug("Processing trigger %s", t)
-            process_trigger(t)
+            logging.debug("Processing trigger %s on player %s", t)
+            process_trigger(t, players[t.screennum])
             
     if not found:
         logging.error("Trigger %s not found", event)
 
-         
         
-def process_trigger(t):
+def process_trigger(t, player):
     
     if t.loop=="StopFile":
-        if playing["file"]==t.playfile:
+        if player.file==t.playfile:
             logging.debug("Stopping playback of %s", t.playfile)
-            stop_player()
+            player.stop()
             
     elif t.loop=="StopPlayer":
-        if t.priority > playing["priority"]:
+        if t.priority > player.priority:
             logging.debug("Stopping playback")
-            stop_player 
+            player.stop() 
         else:
             logging.debug("Not stopping playback as playing video has higher priority")
             
     elif t.loop=="Normal" or t.loop=="":
         logging.debug("Start normal playback of %s/%s, priority %s",
                           t.playlist, t.playfile, t.priority)
-        play_file(t.playlist, t.playfile, loop=False, priority=t.priority)
+        player.play(t.playlist, t.playfile, loop=False, priority=t.priority)
             
-    elif t.loop=="Loop":
+    elif t.loop=="Loop" or t.loop=="SetBG":
         logging.debug("Start loop of %s/%s, priority %s",
                           t.playlist, t.playfile, t.priority)
-        play_file(t.playlist, t.playfile, loop=True, priority=t.priority)
+        player.play(t.playlist, t.playfile, loop=True, priority=t.priority)
         
     elif t.loop=="SkipSamePrty":
-        if playing["priority"] != t.priority:
+        if player.priority != t.priority:
             logging.debug("Start playback of %s/%s, priority %s",
                           t.playlist, t.playfile, t.priority)
-            play_file(t.playlist, t.playfile, loop=False, priority=t.priority)
+            player.play(t.playlist, t.playfile, loop=False, priority=t.priority)
         else:
             logging.debug("Skipping %s/%s as file %s with same priority %s is already playing",
-                          t.playlist, t.playfile, playing["file"],t.priority)
-    elif t.loop=="SetBG":
-        play_background(t.playfile)
+                          t.playlist, t.playfile, player.file,t.priority)
         
     else:
         logging.info("Trigger loop type %s not yet implemented", t.loop)
        
             
             
-@route('/play/<filename>')
-def api_play(filename):
-    play_file(filename,loop=False)
-    
-@route('/loop/<filename>')
-def api_loop(filename):
-    play_file(filename,loop=False)
-    
 @route('/trigger/<event>')
 def api_trigger(event):
     process_triggers(event)
@@ -244,19 +191,26 @@ def read_files(basedir):
             logging.debug("Added playlist %s", p)
             
 def main():
-    global screen 
+    global players
+    
+    logging.basicConfig(level=logging.INFO)
+    
+    screenlist=""
     
     try:
         datadir=sys.argv[1]
-        screen=sys.argv[2]
+        screenlist=sys.argv[2]
     except:
-        datadir="."
-        screen=12
+        print("Requires datadir and screen list as command line arguments.")
+        sys.exit(1)
+        
+    layer=1
+    for screen in screenlist.split(","):
+        players[screen]=Player(layer)
+        layer += 1
 
-    logging.basicConfig(level=logging.INFO)
-    
     logging.info("Starting PiPUP server from data directory %s, screennum %s",
-                 datadir, screen)
+                 datadir, players.keys())
     
     read_files(datadir)
 
