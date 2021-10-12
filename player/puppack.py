@@ -59,6 +59,7 @@ class Screen():
 
     def get_pos(self,width, height):
         # TODO
+        pass
 
 
         
