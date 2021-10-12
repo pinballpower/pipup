@@ -1,7 +1,7 @@
 from glob import glob 
 from random import shuffle
 
-class Trigger(object):
+class Trigger():
 
     def __init__(self, line):
         (self.id, self.active, self.description, self.trigger,
@@ -22,7 +22,7 @@ class Trigger(object):
         
               
 
-class Playlist(object):
+class Playlist():
     
     def __init__(self, line, basedir):
         (self.screennum,self.folder,self.description,
@@ -48,6 +48,19 @@ class Playlist(object):
              
     def __str__(self):
         return "{} {}".format(self.folder, self.files)
+    
+    
+class Screen():
+    
+    def __init__(self, line):
+        (self.screennum,self.screendes,self.playlist,
+         self.playfile,self.loopit,self.active,
+         self.priority,self.custompos) = line.split(",")
+
+    def get_pos(self,width, height):
+        # TODO
+
+
         
           
         

@@ -197,6 +197,10 @@ def main():
     
     screenlist=""
     
+    # TODO: Get this from the system instead of hardcoding it
+    width=1920
+    height=1080
+    
     try:
         datadir=sys.argv[1]
         screenlist=sys.argv[2]
