@@ -22,3 +22,9 @@ Sends the specified trigger to start playback of the associted videos.
 
 ... to be implemented
 
+
+## Installation
+
+Have a look at [docs/installation.md](docs/installation.md)
+  
+
