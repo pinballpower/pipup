@@ -1,10 +1,11 @@
 from bottle import route, run
 import logging
 import subprocess
-from glob import glob
-import os.path
+import os
 import time
 import sys
+import time
+import select
 from threading import Thread
 
 try:
@@ -12,14 +13,18 @@ try:
 except:
     logging.error("Can't use SIGUSR1 and SIGUSER2 on nin-UNIX-Systems")
 
-from puppack import Trigger, Playlist
+from puppack import Trigger, Playlist, Screen
 
 # a dictionary of players indexed by their screen ids
 players = {} 
 
-metadata={}
+# files={}
 triggers = []
 playlists = {}
+
+basedir="."
+
+
 
 class Player():
 
@@ -28,6 +33,9 @@ class Player():
         self.file = None
         self.priority = -1
         self.layer = layer
+        self.timeout = 5
+        self.last_alive= time.time()
+        self.poller=None
         
     def finish(self):
         self.process = None
@@ -49,34 +57,74 @@ class Player():
         return (self.process is not None)
     
     def stop(self):
-        self.process.kill()
-        self.playing()
+        self.process.terminate()
+        time.sleep(0.3)
+        if self.process.poll() is None:
+            self.process.kill()
+        self.update()
+        
+    def check_alive(self):
+        if self.last_alive == 0:
+            return
+        
+        if not(self.playing):
+            return
+        
+        now = time.time()
+        if now-self.lastalive > self.timeout:
+            logging.warning("player for %s seems to be hanging, aborting...", self.file)
+            self.stop()
+            
+    def set_alive(self):
+        self.last_alive = time.time()
 
     
     def play(self, playlist, filename, loop=False, priority=-1):
+        absfile=None
         if filename is None or filename=="":
             # Use the playlist instead
             try:
                 pl=playlists[playlist]
-                filename=os.path.basename(pl.next_file())
+                absfile=pl.next_file()
+                filename=absfile
             except:
                 logging.error("couldn't find any file for playlist %s",
                               playlist)
-    
-        if filename is None or filename=="":
-            logging.info("ignoring playfile request for empty file name")
-            return
-        
+                return
+
         try:
             oldproc = self.process
     
-            absfile=fileinfo(filename)["file"]
+            if absfile is None:
+                absfile=basedir+"/"+playlist+"/"+filename
       
             layeroption = "-l {}".format(self.layer)
-            if loop:
-                self.process=subprocess.Popen(["../hello_video.bin", "-i", layeroption, absfile]) 
+            
+            if absfile.endswith(".h264"):
+                # H264 video files using hello_video
+                if loop:
+                    logging.info("Looping %s", absfile)
+                    self.process=subprocess.Popen(["../hello_video.bin",  "-i", "-p", layeroption, absfile],
+                                                  stdout=subprocess.PIPE, bufsize=1)
+                    self.lastalive=time.time()
+                else:
+                    logging.info("Playing %s", absfile)
+                    self.process=subprocess.Popen(["../hello_video.bin", "-p", layeroption, absfile],
+                                                  stdout=subprocess.PIPE)
+                    self.lastalive=time.time()
+            elif absfile.endswith(".png"):
+                # PNGs using pngview
+                logging.info("Displaying %s", absfile)
+                self.process=subprocess.Popen(["../pngview", "-b 0", "-n", layeroption, absfile],
+                                              stdout=subprocess.PIPE, bufsize=1)
+                self.lastalive=0;
+                
             else:
-                self.process=subprocess.Popen(["../hello_video.bin", layeroption, absfile])
+                logging.error("type of file %s not supported", absfile)
+                
+            if self.playing():
+                self.poller=select.poll()
+                self.poller.register(self.process.stdout,select.POLLIN)
                 
             self.file=filename
             self.priority=priority   
@@ -89,7 +137,6 @@ class Player():
         except Exception as e:
             logging.error("%s", e)
     
-        
                 
 
 class Looper(Thread):
@@ -102,17 +149,20 @@ class Looper(Thread):
         global players
         
         while not self.stop:
-            time.sleep(0.02)
-            for player in players.values():
-                player.update()
-        
-
-def fileinfo(filename):
-    filename=filename.lower()
-    if filename.endswith(".h264"):
-        filename=filename[:-5]
-
-    return metadata[filename]
+            time.sleep(1)
+            for screen in players.keys():
+                p=players[screen]
+                if p.playing():
+                    logging.info("checking stdout of %s",p)
+                    
+                    if p.poller is not None and p.poller.poll(1):
+                        line = p.process.stdout.readline()
+                        p.set_alive()
+                        logging.info("%s: %s", screen, line)
+                    else:
+                        logging.info(":(")
+                        p.check_alive();
+    
 
 def process_triggers(event):
     found=False
@@ -170,12 +220,10 @@ def api_trigger(event):
     
 def read_files(basedir):
     global triggers
-    
-    ## Get a list of all files
-    for f in glob(basedir+"/*/*.h264"):
-        key=os.path.basename(f)[:-5].lower()
-        metadata[key]={"file": os.path.abspath(f)}
-        
+    global files
+    global playlists
+    global screens
+
     ## Read the triggers
     with open(basedir+"/triggers.pup", 'r', encoding='utf-8') as infile:
         for line in infile:
@@ -190,8 +238,20 @@ def read_files(basedir):
             playlists[p.folder]=p
             logging.debug("Added playlist %s", p)
             
+    ## Read the screens
+    with open(basedir+"/screens.pup", 'r', encoding='utf-8') as infile:
+        for line in infile:
+            s = Screen(line)
+            if s.screennum in players:
+                logging.info("Found configuration for screen %s", s.screennum)
+                if len(s.playlist+s.playfile) > 0:
+                    players[s.screennum].play( s.playlist, s.playfile, s.loopit, s.priority)
+                # TODO: sizing
+
+            
 def main():
     global players
+    global basedir
     
     logging.basicConfig(level=logging.INFO)
     
@@ -202,7 +262,7 @@ def main():
     height=1080
     
     try:
-        datadir=sys.argv[1]
+        basedir=sys.argv[1]
         screenlist=sys.argv[2]
     except:
         print("Requires datadir and screen list as command line arguments.")
@@ -214,9 +274,9 @@ def main():
         layer += 1
 
     logging.info("Starting PiPUP server from data directory %s, screennum %s",
-                 datadir, players.keys())
+                 basedir, players.keys())
     
-    read_files(datadir)
+    read_files(basedir)
 
     looperthread=Looper()
     looperthread.start()
