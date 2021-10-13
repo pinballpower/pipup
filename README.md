@@ -14,6 +14,8 @@ Only a 2 video screens are supported. No support for the 2nd HDMI output on the 
 
 - Use screens.pup configuration file
 - support PNG files
+- support scaling to a specific resolution as defined in screens.pup
+- improve documentation
 
 ## Interfaces
 
