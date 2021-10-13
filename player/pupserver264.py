@@ -6,6 +6,7 @@ import time
 import sys
 import time
 import select
+import fcntl
 from threading import Thread
 
 try:
@@ -25,6 +26,14 @@ playlists = {}
 basedir="."
 
 
+def setNonBlocking(fd):
+    """
+    Set the file description of the given file descriptor to non-blocking.
+    """
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    flags = flags | os.O_NONBLOCK
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+    
 
 class Player():
 
@@ -33,9 +42,8 @@ class Player():
         self.file = None
         self.priority = -1
         self.layer = layer
-        self.timeout = 5
+        self.timeout = 0
         self.last_alive= time.time()
-        self.poller=None
         
     def finish(self):
         self.process = None
@@ -57,9 +65,14 @@ class Player():
         return (self.process is not None)
     
     def stop(self):
-        self.process.terminate()
-        time.sleep(0.3)
+        if self.process is None:
+            return
+        
         if self.process.poll() is None:
+            self.process.terminate()
+            time.sleep(0.3)
+            
+        if self.process is not None and self.process.poll() is None:
             self.process.kill()
         self.update()
         
@@ -70,10 +83,11 @@ class Player():
         if not(self.playing):
             return
         
-        now = time.time()
-        if now-self.lastalive > self.timeout:
-            logging.warning("player for %s seems to be hanging, aborting...", self.file)
-            self.stop()
+        if self.timeout > 0:
+            now = time.time()
+            if now-self.last_alive > self.timeout:
+                logging.warning("player for %s seems to be hanging, aborting...", self.file)
+                self.stop()
             
     def set_alive(self):
         self.last_alive = time.time()
@@ -104,13 +118,11 @@ class Player():
                 # H264 video files using hello_video
                 if loop:
                     logging.info("Looping %s", absfile)
-                    self.process=subprocess.Popen(["../hello_video.bin",  "-i", "-p", layeroption, absfile],
-                                                  stdout=subprocess.PIPE, bufsize=1)
+                    self.process=subprocess.Popen(["../hello_video.bin",  "-i", layeroption, absfile])
                     self.lastalive=time.time()
                 else:
                     logging.info("Playing %s", absfile)
-                    self.process=subprocess.Popen(["../hello_video.bin", "-p", layeroption, absfile],
-                                                  stdout=subprocess.PIPE)
+                    self.process=subprocess.Popen(["../hello_video.bin", layeroption, absfile])
                     self.lastalive=time.time()
             elif absfile.endswith(".png"):
                 # PNGs using pngview
@@ -122,9 +134,9 @@ class Player():
             else:
                 logging.error("type of file %s not supported", absfile)
                 
-            if self.playing():
-                self.poller=select.poll()
-                self.poller.register(self.process.stdout,select.POLLIN)
+            #if self.playing():
+            #    setNonBlocking(self.process.stdout)
+            #    setNonBlocking(self.process.stderr)
                 
             self.file=filename
             self.priority=priority   
@@ -152,16 +164,18 @@ class Looper(Thread):
             time.sleep(1)
             for screen in players.keys():
                 p=players[screen]
-                if p.playing():
-                    logging.info("checking stdout of %s",p)
-                    
-                    if p.poller is not None and p.poller.poll(1):
-                        line = p.process.stdout.readline()
-                        p.set_alive()
-                        logging.info("%s: %s", screen, line)
-                    else:
-                        logging.info(":(")
-                        p.check_alive();
+                p.update()
+#                 if p.playing():
+#                     logging.info("checking stdout of %s",p)
+#                     
+#                     line = p.process.stdout.readline()
+#                     if len(line)>0:
+#                         logging.info("alive")
+#                         p.set_alive()
+#                     else:
+#                         logging.info("not alive")
+#                         
+#                     logging.info("%s: %s", screen, line)
     
 
 def process_triggers(event):
