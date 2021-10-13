@@ -1,5 +1,6 @@
 from glob import glob 
 from random import shuffle
+import csv
 
 class Trigger():
 
@@ -53,16 +54,12 @@ class Playlist():
 class Screen():
     
     def __init__(self, line):
+        parts=list(csv.reader([line]))[0]
         (self.screennum,self.screendes,self.playlist,
          self.playfile,self.loopit,self.active,
-         self.priority,self.custompos) = line.split(",")
+         self.priority,self.custompos) = parts
 
     def get_pos(self,width, height):
-        # TODO
         pass
-
-
-        
-          
         
         
