@@ -1,0 +1,3 @@
+cd pipup/player
+python3 pupserver264.py ../.. 2,12,13 
+

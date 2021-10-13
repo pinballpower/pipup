@@ -1,0 +1,14 @@
+#!/bin/sh
+curl http://localhost:5000/trigger/D1
+sleep 3
+curl http://localhost:5000/trigger/D2
+sleep 2
+curl http://localhost:5000/trigger/D44
+sleep 2
+curl http://localhost:5000/trigger/D1
+sleep 2
+curl http://localhost:5000/trigger/D58
+sleep 2
+curl http://localhost:5000/trigger/D59
+sleep 2
+

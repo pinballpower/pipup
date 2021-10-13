@@ -1,0 +1,4 @@
+pkill -KILL python3
+pkill -KILL hello_video.bin
+pkill -KILL pngview
+
